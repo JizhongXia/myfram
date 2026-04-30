@@ -6,9 +6,10 @@ const TILE_SIZE := 64
 const MAP_W := 48
 const MAP_H := 32
 
-const ATLAS_GRASS_MAIN := Vector2i(4, 4)
-const ATLAS_GRASS_ALT := Vector2i(5, 3)
-const ATLAS_GRASS_JUNGLE := Vector2i(3, 4)
+## Sprout Lands Grass.png：Tiled 教程地图主草地 gid=43 → atlas (2,4)。变体须选不透明瓦片：(5,3) 等大量透明会透出视口灰底，看起来像没铺草。
+const ATLAS_GRASS_MAIN := Vector2i(2, 4)
+const ATLAS_GRASS_ALT := Vector2i(5, 4)
+const ATLAS_GRASS_JUNGLE := Vector2i(4, 4)
 
 const SRC_WATER := 0
 const SRC_GRASS := 1
@@ -20,7 +21,7 @@ const GROW_SEC_STAGE := 5.0
 @onready var _water_layer: TileMapLayer = $Water
 @onready var _island_layer: TileMapLayer = $Island
 @onready var _jungle_root: Node2D = $Jungle
-@onready var _farm_soil: TileMapLayer = $Jungle/FarmSoil
+@onready var _farm_soil: TileMapLayer = $FarmSoil
 @onready var _farm_crops: Node2D = $Jungle/FarmCrops
 @onready var _trees_root: Node2D = $Jungle/Trees
 @onready var _player: CharacterBody2D = $Jungle/Player
