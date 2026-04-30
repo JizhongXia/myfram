@@ -44,6 +44,7 @@ func _ready() -> void:
 	_jungle_root.y_sort_enabled = true
 
 	_spawn_player_on_island()
+	_seed_demo_inventory()
 
 	print("Island map: %dx%d, animated water 0–3, jungle, player walk." % [MAP_W, MAP_H])
 
@@ -158,7 +159,12 @@ func _spawn_player_on_island() -> void:
 	_player.global_position = Vector2((cx + 0.5) * TILE_SIZE, (cy + 0.5) * TILE_SIZE)
 
 
-## 供 PlayerWalk 在移动后拉回岛内（海水不可站立）
+func _seed_demo_inventory() -> void:
+	InventoryManager.add_item("apple", "苹果", 5)
+	InventoryManager.add_item("corn", "玉米", 12)
+	InventoryManager.add_item("wood", "木材", 30)
+
+
 func clamp_player_world_position(pos: Vector2) -> Vector2:
 	var half := TILE_SIZE * 0.5
 	pos.x = clampf(pos.x, half, MAP_W * TILE_SIZE - half)

@@ -7,16 +7,30 @@
 ```
 myfram/
 ├── scenes/
-│   └── map/
-│       ├── terrain_types.gd      # 地形类型定义
-│       ├── MapManager.gd         # 地图管理器脚本
-│       └── MapManager.tscn       # 地图管理器场景
+│   ├── map/
+│   │   ├── terrain_types.gd
+│   │   ├── MapManager.gd
+│   │   ├── MapManager.tscn
+│   │   └── player/
+│   │       ├── PlayerWalk.gd
+│   │       └── PlayerWalk.tscn
+│   └── ui/
+│       ├── inventory_panel.gd
+│       └── inventory_panel.tscn
 ├── scripts/
-│   └── map_data.gd              # 地图数据系统
-├── assets/                       # 资源文件夹
-│   └── sprout-lands/             # Sprout Lands 风格参考资源（见下文）
-└── project.godot                # Godot 项目配置
+│   ├── map_data.gd
+│   └── inventory/
+│       └── inventory_manager.gd   # Autoload: InventoryManager
+├── assets/
+│   └── sprout-lands/
+└── project.godot
 ```
+
+## 背包
+
+- **Autoload**：`InventoryManager`（`scripts/inventory/inventory_manager.gd`），24 槽、同 `id` 堆叠至 99。
+- **UI**：`scenes/ui/inventory_panel.tscn` 挂在 `MapManager` 下；**I / Tab / 手柄 Y** 开关；打开时半透明遮罩，点击遮罩关闭；**打开背包时玩家不能移动**（`player_input_blocked`）。
+- **演示**：`MapManager` 启动时放入苹果×5、玉米×12、木材×30。点击槽位会在控制台打印（未消耗物品）。
 
 ## Sprout Lands 参考资源（`assets/sprout-lands/`）
 

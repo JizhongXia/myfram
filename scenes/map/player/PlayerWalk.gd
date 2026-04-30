@@ -98,6 +98,16 @@ func _build_sprite_frames() -> void:
 
 
 func _physics_process(_delta: float) -> void:
+	if InventoryManager.player_input_blocked:
+		velocity = Vector2.ZERO
+		_sprite.stop()
+		_sprite.frame = 0
+		move_and_slide()
+		var map_root := get_parent().get_parent()
+		if map_root.has_method(&"clamp_player_world_position"):
+			global_position = map_root.clamp_player_world_position(global_position)
+		return
+
 	var dir := _read_move_vector()
 	if dir.length_squared() > 0.0001:
 		velocity = dir.normalized() * SPEED

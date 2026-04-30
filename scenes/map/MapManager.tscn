@@ -1,7 +1,8 @@
-[gd_scene load_steps=3 format=3 uid="uid://bmap_manager"]
+[gd_scene load_steps=4 format=3 uid="uid://bmap_manager"]
 
 [ext_resource type="Script" path="res://scenes/map/MapManager.gd" id="1_script"]
 [ext_resource type="PackedScene" uid="uid://player_walk_simple" path="res://scenes/map/player/PlayerWalk.tscn" id="2_player"]
+[ext_resource type="PackedScene" uid="uid://inventory_panel_ui" path="res://scenes/ui/inventory_panel.tscn" id="3_inv"]
 
 [node name="MapManager" type="Node2D"]
 script = ExtResource("1_script")
@@ -18,3 +19,5 @@ y_sort_enabled = true
 
 [node name="Player" parent="Jungle" instance=ExtResource("2_player")]
 position = Vector2(1536, 1024)
+
+[node name="InventoryPanel" parent="." instance=ExtResource("3_inv")]
