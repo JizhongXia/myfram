@@ -11,7 +11,7 @@ export function createGame(parent) {
     physics: {
       default: 'arcade',
       arcade: {
-        gravity: { y: 900 },
+        gravity: { y: 0 },
         debug: false,
       },
     },

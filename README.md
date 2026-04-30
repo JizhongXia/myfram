@@ -1,13 +1,18 @@
-# H5 平台场景（Vue 3 + Node + SQLite + Docker）
+# H5 牧场原型（Vue 3 + Node + SQLite + Docker）
 
-本仓库在分支 `cursor/h5-vue-game-rebuild-e2a1` 上从零重建：前端为 **Vue 3 + Vite**，游戏层使用 **Phaser 3**（可继续引入其他包）；后端为 **Express + better-sqlite3**；编排为 **Docker Compose**。
+前端为 **Vue 3 + Vite**，游戏层为 **Phaser 3**；后端 **Express + better-sqlite3**；**Docker Compose** 编排。
 
-## 初始场景
+## Sprout Lands 美术与地图
 
-- **平台**：可站立的地面与一块高台（矩形碰撞体）。
-- **路灯**：精灵图路径为 `client/public/assets/lamp.png`（你可自行替换为 `路灯.png` 内容，保持文件名或改 `GameScene.js` 中的 `load.image`）。
-- **核心**：带呼吸缩放的圆形目标物。
-- **人物移动**：左右 **A/D** 或方向键，**W** 或上键在着地时跳跃；位置会周期性写入 SQLite（`/api/state/player`）。
+- 推荐资源：[Sprout Lands - Asset Pack](https://cupnooble.itch.io/sprout-lands-asset-pack)（itch.io）。
+- 当前仓库在 `client/public/assets/sprout-lands/` 下附带了一套与 Sprout Lands 兼容的 **地图与贴图**（来自开源教程仓库 [magicjulio/sproutland](https://github.com/magicjulio/sproutland)，其 README 已署名为 Cup Nooble）。**若用于商业发行，请替换为你从 itch 下载的官方包，并遵守许可与署名。**
+- 构建时会运行 `client/scripts/build-sprout-manifest.mjs`，从 `map.tmx` 生成 `client/src/generated/sprout-manifest.json`，供 Phaser 加载瓦片与物体。
+
+## 玩法（当前）
+
+- **俯视牧场地图**：草地、装饰、房屋、围栏、树木等；**碰撞层**来自 Tiled 的 Collision 图层。
+- **「核心」**：使用苹果精灵作为可收集物占位，带缩放呼吸动画。
+- **移动**：**WASD** 或方向键**四方向**行走；角色使用包内四向行走帧动画。位置仍会周期性同步到 SQLite（`/api/state/player`）。
 
 ## 本地开发
 
@@ -16,7 +21,7 @@ npm install
 npm run dev
 ```
 
-浏览器打开 Vite 提示的地址（默认 `http://localhost:5173`）。`/api` 由 Vite 代理到 `http://127.0.0.1:3001`。
+浏览器打开 Vite 地址（默认 `http://localhost:5173`）。`/api` 由 Vite 代理到 `http://127.0.0.1:3001`。
 
 ## 测试
 
@@ -24,16 +29,14 @@ npm run dev
 npm test
 ```
 
-包含客户端 Vitest 与 API 的 Node 内置测试。
-
 ## Docker（本机需安装 Docker）
 
 ```bash
 docker compose up --build
 ```
 
-前端映射 **8080**，API 映射 **3001**；SQLite 数据卷挂载在 API 容器的 `/data`。
+前端 **8080**，API **3001**；SQLite 数据卷在 API 容器的 `/data`。
 
 ## 技术说明
 
-Phaser 体积较大，生产构建会有 chunk 体积提示；后续可用 `import()` 懒加载 Phaser 场景以优化首包。
+Phaser 首包较大；后续可用 `import()` 懒加载场景以减小首屏 JS。

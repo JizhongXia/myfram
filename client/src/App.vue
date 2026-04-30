@@ -1,14 +1,22 @@
 <script setup>
 import GameView from './components/GameView.vue';
+import manifest from './generated/sprout-manifest.json';
+
+const credit = manifest.credit;
 </script>
 
 <template>
   <div class="app">
     <header class="bar">
       <h1>初始场景</h1>
-      <p class="hint">方向键 / WASD 移动 · 路灯图请放到 <code>client/public/assets/lamp.png</code></p>
+      <p class="hint">
+        Sprout Lands 风格牧场地图（WASD / 方向键移动）。美术来源见页脚说明；商业发行请使用你在 itch 下载的包并保留署名。
+      </p>
     </header>
     <GameView class="stage" />
+    <footer class="foot">
+      <small>{{ credit }}</small>
+    </footer>
   </div>
 </template>
 
@@ -48,5 +56,14 @@ body {
 .stage {
   flex: 1;
   min-height: 0;
+}
+.foot {
+  padding: 6px 14px 10px;
+  font-size: 0.7rem;
+  opacity: 0.75;
+  border-top: 1px solid #223;
+}
+.foot small {
+  line-height: 1.35;
 }
 </style>
