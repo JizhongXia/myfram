@@ -1,6 +1,8 @@
 class_name MapData
 extends RefCounted
 
+const TerrainTypes = preload("res://scenes/map/terrain_types.gd")
+
 const TOTAL_SIZE: int = 60
 const FARM_SIZE: int = 50
 const BORDER_SIZE: int = 5

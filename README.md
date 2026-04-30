@@ -24,6 +24,19 @@ myfram/
 
 当前主场景仍以程序生成的 `MapData` 网格为主；若要使用上述 Tiled 地图，需在编辑器中新建 TileMapLayer 并绑定对应 TileSet。
 
+## 运行项目
+
+本仓库已包含 `assets/sprout-lands/`，克隆后 **无需再单独下载**（若需 itch 官方包可自行覆盖该目录）。
+
+- **Godot 编辑器**：用 Godot 4.6+ 打开项目根目录，按 F5 运行（主场景 `scenes/map/MapManager.tscn`）。
+- **命令行（无界面自检）**：
+
+```bash
+godot --path . --headless --quit-after 5
+```
+
+若未安装全局 `godot`，请使用你本机 Godot 可执行文件的完整路径。
+
 ## 地图系统说明
 
 ### 地图尺寸

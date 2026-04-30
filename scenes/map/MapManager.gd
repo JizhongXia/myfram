@@ -1,13 +1,17 @@
 extends Node2D
 
+## Preload so MapData / TerrainTypes resolve before this script parses (class_name load order).
+const TerrainTypes = preload("res://scenes/map/terrain_types.gd")
+const MapDataScript = preload("res://scripts/map_data.gd")
+
 const CELL_SIZE: int = 16
 
-var map_data: MapData
+var map_data: RefCounted
 
 @onready var tile_map_layer: TileMapLayer = $TileMapLayer
 
 func _ready() -> void:
-	map_data = MapData.new()
+	map_data = MapDataScript.new()
 	map_data.debug_print_terrain()
 	_render_map()
 	print("MapManager ready. Click on the map to inspect tiles.")
@@ -16,9 +20,9 @@ func _render_map() -> void:
 	if tile_map_layer == null or tile_map_layer.tile_set == null:
 		_render_fallback()
 		return
-	for y in range(MapData.TOTAL_SIZE):
-		for x in range(MapData.TOTAL_SIZE):
-			var terrain := map_data.get_terrain(x, y)
+	for y in range(MapDataScript.TOTAL_SIZE):
+		for x in range(MapDataScript.TOTAL_SIZE):
+			var terrain: int = map_data.get_terrain(x, y)
 			tile_map_layer.set_cell(Vector2i(x, y), 0, _get_atlas_coords(terrain))
 
 func _get_atlas_coords(terrain: int) -> Vector2i:
@@ -45,9 +49,9 @@ func _get_atlas_coords(terrain: int) -> Vector2i:
 			return Vector2i(0, 0)
 
 func _render_fallback() -> void:
-	for y in range(MapData.TOTAL_SIZE):
-		for x in range(MapData.TOTAL_SIZE):
-			var terrain := map_data.get_terrain(x, y)
+	for y in range(MapDataScript.TOTAL_SIZE):
+		for x in range(MapDataScript.TOTAL_SIZE):
+			var terrain: int = map_data.get_terrain(x, y)
 			var rect := ColorRect.new()
 			rect.size = Vector2(CELL_SIZE, CELL_SIZE)
 			rect.position = Vector2(x * CELL_SIZE, y * CELL_SIZE)
@@ -70,7 +74,7 @@ func _get_terrain_color(terrain: int) -> Color:
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		var cell := get_cell_under_mouse()
-		if cell.x >= 0 and cell.x < MapData.TOTAL_SIZE and cell.y >= 0 and cell.y < MapData.TOTAL_SIZE:
+		if cell.x >= 0 and cell.x < MapDataScript.TOTAL_SIZE and cell.y >= 0 and cell.y < MapDataScript.TOTAL_SIZE:
 			var terrain: int = map_data.get_terrain(cell.x, cell.y)
 			var terrain_name: String = TerrainTypes.get_name(terrain)
 			var area := "农场区域" if map_data.is_in_farm_area(cell.x, cell.y) else "边界区域"
