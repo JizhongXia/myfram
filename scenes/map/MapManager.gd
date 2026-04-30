@@ -20,7 +20,29 @@ const SRC_GRASS := 1
 const SRC_SOIL := 2
 
 const SOIL_ATLAS := Vector2i(0, 0)
+
+## ---------------------------------------------------------------------------
+## 种植规则（与下方 _try_farm_interact / _till_cell / _try_plant / _harvest_cell 一致）
+##
+## 1. 田区：必须在岛上、且不在丛林心；矩形格范围（含边界）由 FARM_CELL_* 定义。
+## 2. 交互键：E / 手柄 A（`interact`）；背包打开时不处理。
+## 3. 空地（无作物、无田土格）：第一次交互 → 翻土（消耗无，铺 soil 瓦片）。
+## 4. 已翻土、无作物：有对应种子则播种并消耗 1 粒；无任何种子则提示。
+## 5. 播种优先级：同时有玉米种子与番茄种子时，优先种玉米。
+## 6. 已翻土且已有作物：未成熟（stage < CROP_STAGE_MATURE）→ 仅提示；成熟 → 收获，
+##    清空该格作物与田土，果实入包（数量见 HARVEST_*）。
+## 7. 生长：每格独立计时；每 GROW_SEC_STAGE 秒升一阶，0→1→2→3 可收。
+## ---------------------------------------------------------------------------
+const FARM_CELL_MIN := Vector2i(MAP_W / 2 - 7, MAP_H / 2 + 1)
+const FARM_CELL_MAX := Vector2i(MAP_W / 2 + 9, MAP_H / 2 + 13)
+const SEED_COST_PER_PLANT := 1
+## 作物阶段 0..3，共 4 帧；达到 CROP_STAGE_MATURE 可收获。
+const CROP_STAGE_MATURE := 3
 const GROW_SEC_STAGE := 5.0
+const HARVEST_CORN_MIN := 1
+const HARVEST_CORN_MAX := 2
+const HARVEST_TOMATO_MIN := 1
+const HARVEST_TOMATO_MAX := 2
 
 ## 岛屿相对海面的垂直起伏（像素）
 const ISLAND_BOB_AMPLITUDE := 5.0
@@ -81,7 +103,7 @@ func _ready() -> void:
 	_spawn_player_on_island()
 	_seed_demo_inventory()
 
-	print("Island map + farm plot: E / 手柄 A 翻土·播种·收获。")
+	print("Island map + farm plot: E / 手柄 A 翻土·播种·收获（规则见 MapManager.gd 顶部注释）。")
 
 
 func _load_crop_frames() -> void:
@@ -187,7 +209,7 @@ func _is_jungle(cx: int, cy: int) -> bool:
 func _is_farm_plot(cx: int, cy: int) -> bool:
 	if not _is_island(cx, cy) or _is_jungle(cx, cy):
 		return false
-	return cx >= MAP_W / 2 - 7 and cx <= MAP_W / 2 + 9 and cy >= MAP_H / 2 + 1 and cy <= MAP_H / 2 + 13
+	return cx >= FARM_CELL_MIN.x and cx <= FARM_CELL_MAX.x and cy >= FARM_CELL_MIN.y and cy <= FARM_CELL_MAX.y
 
 
 func _grass_atlas_for_cell(cx: int, cy: int) -> Vector2i:
@@ -301,16 +323,20 @@ func _player_cell() -> Vector2i:
 func _try_farm_interact() -> void:
 	var cell := _player_cell()
 	if not _is_farm_plot(cell.x, cell.y):
-		print("[农田] 此处不可耕种（请走到岛南侧田区）。")
+		print("[农田] 仅岛南侧矩形田区可耕种（格范围 x=%d..%d, y=%d..%d，且非丛林）。" % [
+			FARM_CELL_MIN.x, FARM_CELL_MAX.x, FARM_CELL_MIN.y, FARM_CELL_MAX.y,
+		])
 		return
 
 	if _crops.has(cell):
 		var d: Dictionary = _crops[cell]
 		var st: int = int(d["stage"])
-		if st >= 3:
+		if st >= CROP_STAGE_MATURE:
 			_harvest_cell(cell, str(d["id"]))
 		else:
-			print("[农田] 作物生长中…")
+			print("[农田] 作物生长中（阶段 %d/%d，每阶段约 %.0f 秒）。" % [
+				st, CROP_STAGE_MATURE, GROW_SEC_STAGE,
+			])
 		return
 
 	if _farm_soil.get_cell_source_id(cell) != -1:
@@ -321,13 +347,20 @@ func _try_farm_interact() -> void:
 
 
 func _till_cell(cell: Vector2i) -> void:
+	if _farm_soil.get_cell_source_id(cell) != -1:
+		print("[农田] 此处已是耕地，无需再翻土。")
+		return
 	_farm_soil.set_cell(cell, SRC_SOIL, SOIL_ATLAS)
-	print("[农田] 已翻土 (%d,%d)" % [cell.x, cell.y])
+	print("[农田] 已翻土 (%d,%d)。下一步：在背包中备种子后按 E 播种。" % [cell.x, cell.y])
 
 
 func _try_plant(cell: Vector2i) -> void:
+	if _crops.has(cell):
+		print("[农田] 该格已有作物。")
+		return
 	var crop_id := ""
 	var disp := ""
+	# 规则：两种种子都有时优先玉米。
 	if InventoryManager.count_item("corn_seed") > 0:
 		crop_id = "corn"
 		disp = "玉米"
@@ -335,14 +368,15 @@ func _try_plant(cell: Vector2i) -> void:
 		crop_id = "tomato"
 		disp = "番茄"
 	else:
-		print("[农田] 没有种子（需要玉米种子或番茄种子）。")
+		print("[农田] 无法播种：需要背包中有「玉米种子」或「番茄种子」（每格消耗 %d）。" % SEED_COST_PER_PLANT)
 		return
 	var seed_key := crop_id + "_seed"
-	if not InventoryManager.consume_item(seed_key, 1):
+	if not InventoryManager.consume_item(seed_key, SEED_COST_PER_PLANT):
+		print("[农田] 种子消耗失败（背包异常）。")
 		return
 	_crops[cell] = { "id": crop_id, "stage": 0, "grow": 0.0 }
 	_refresh_crop_visual(cell)
-	print("[农田] 已播种：%s" % disp)
+	print("[农田] 已播种：%s（消耗 %s ×%d）。" % [disp, seed_key, SEED_COST_PER_PLANT])
 
 
 func _harvest_cell(cell: Vector2i, crop_id: String) -> void:
@@ -352,11 +386,14 @@ func _harvest_cell(cell: Vector2i, crop_id: String) -> void:
 		spr.queue_free()
 	_crops.erase(cell)
 	_farm_soil.erase_cell(cell)
+	var qty := 0
 	if crop_id == "corn":
-		InventoryManager.add_item("corn", "玉米", 1 + (_rng.randi() % 2))
+		qty = _rng.randi_range(HARVEST_CORN_MIN, HARVEST_CORN_MAX)
+		InventoryManager.add_item("corn", "玉米", qty)
 	elif crop_id == "tomato":
-		InventoryManager.add_item("tomato", "番茄", 1 + (_rng.randi() % 2))
-	print("[农田] 收获！")
+		qty = _rng.randi_range(HARVEST_TOMATO_MIN, HARVEST_TOMATO_MAX)
+		InventoryManager.add_item("tomato", "番茄", qty)
+	print("[农田] 收获完成（%s ×%d）。该格已清空，可再次翻土。" % [crop_id, qty])
 
 
 func _refresh_crop_visual(cell: Vector2i) -> void:
@@ -364,7 +401,7 @@ func _refresh_crop_visual(cell: Vector2i) -> void:
 		return
 	var d: Dictionary = _crops[cell]
 	var crop_id: String = str(d["id"])
-	var st: int = mini(int(d["stage"]), 3)
+	var st: int = mini(int(d["stage"]), CROP_STAGE_MATURE)
 	var frames: Array = _corn_frames if crop_id == "corn" else _tomato_frames
 	if frames.is_empty():
 		return
@@ -395,10 +432,10 @@ func _process(delta: float) -> void:
 
 	for cell: Vector2i in _crops.keys():
 		var d: Dictionary = _crops[cell]
-		if int(d["stage"]) >= 3:
+		if int(d["stage"]) >= CROP_STAGE_MATURE:
 			continue
 		d["grow"] = float(d["grow"]) + delta
-		while float(d["grow"]) >= GROW_SEC_STAGE and int(d["stage"]) < 3:
+		while float(d["grow"]) >= GROW_SEC_STAGE and int(d["stage"]) < CROP_STAGE_MATURE:
 			d["grow"] = float(d["grow"]) - GROW_SEC_STAGE
 			d["stage"] = int(d["stage"]) + 1
 			_refresh_crop_visual(cell)
