@@ -14,8 +14,15 @@ myfram/
 ├── scripts/
 │   └── map_data.gd              # 地图数据系统
 ├── assets/                       # 资源文件夹
+│   └── sprout-lands/             # Sprout Lands 风格参考资源（见下文）
 └── project.godot                # Godot 项目配置
 ```
+
+## Sprout Lands 参考资源（`assets/sprout-lands/`）
+
+与 [Sprout Lands - Asset Pack](https://cupnooble.itch.io/sprout-lands-asset-pack) 兼容的 **Tiled 地图 `data/map.tmx`** 与 **`graphics/`** 贴图已放在此目录，便于在 Godot 中导入 TileSet / 参考布局。来源为开源教程仓库 [magicjulio/sproutland](https://github.com/magicjulio/sproutland)（其 README 署名为 Cup Nooble）。**若用于商业发行，请替换为你在 itch 购买的官方资源并遵守许可与署名。**
+
+当前主场景仍以程序生成的 `MapData` 网格为主；若要使用上述 Tiled 地图，需在编辑器中新建 TileMapLayer 并绑定对应 TileSet。
 
 ## 地图系统说明
 
