@@ -61,6 +61,10 @@ func _ready() -> void:
 	_water_layer.tile_set = _tile_set
 	_island_layer.tile_set = _tile_set
 	_farm_soil.tile_set = _tile_set
+	# 与素材像素对齐，草地/海水格边缘更清晰（否则远距离缩放像糊成一片色块）
+	_water_layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_island_layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_farm_soil.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 
 	_setup_ocean_backdrop()
 	_setup_island_shadow()
@@ -137,16 +141,16 @@ func _setup_ocean_backdrop() -> void:
 
 
 func _setup_island_shadow() -> void:
-	# 与 _is_island 相同椭圆（格坐标），略压扁并下移，画在海面上表示浮岛投影
+	# 与岛屿 footprint 接近的椭圆（原先 ry 过小会像一条深色“假陆地”横带）
 	var ox := MAP_W / 2.0 * TILE_SIZE
 	var oy := MAP_H / 2.0 * TILE_SIZE
-	var rx := MAP_W * 0.36 * TILE_SIZE * 1.06
-	var ry := MAP_H * 0.38 * TILE_SIZE * 0.22
+	var rx := MAP_W * 0.36 * TILE_SIZE * 1.02
+	var ry := MAP_H * 0.38 * TILE_SIZE * 0.82
 	var pts := PackedVector2Array()
-	var n := 40
+	var n := 48
 	for i in n:
 		var a := TAU * float(i) / float(n)
-		pts.append(Vector2(ox + cos(a) * rx, oy + sin(a) * ry + TILE_SIZE * 0.35))
+		pts.append(Vector2(ox + cos(a) * rx, oy + sin(a) * ry + TILE_SIZE * 0.55))
 	_island_shadow.polygon = pts
 
 
