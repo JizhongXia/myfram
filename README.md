@@ -22,7 +22,7 @@ myfram/
 
 与 [Sprout Lands - Asset Pack](https://cupnooble.itch.io/sprout-lands-asset-pack) 兼容的 **Tiled 地图 `data/map.tmx`** 与 **`graphics/`** 贴图已放在此目录。来源为开源教程仓库 [magicjulio/sproutland](https://github.com/magicjulio/sproutland)（其 README 署名为 Cup Nooble）。**若用于商业发行，请替换为你在 itch 购买的官方资源并遵守许可与署名。**
 
-主场景 `MapManager` 当前为 **48×32、64px 瓦片** 的程序化世界：**海水**使用 `graphics/water/0.png`～`3.png` 横向拼成图集并循环换帧；**椭圆草地小岛**使用 `environment/Grass.png`；岛心较小椭圆为 **原始丛林**，随机放置 `objects/tree_medium.png` 与 `tree_small.png`。贴图在无 `.import` 时通过 `Image.load` 读取，便于无头运行。`scripts/map_data.gd` 仍为 60×60 草地数据类，可供后续逻辑复用，与当前可视演示层独立。
+主场景 `MapManager` 当前为 **48×32、64px 瓦片** 的程序化世界：**海水**使用 `graphics/water/0.png`～`3.png` 横向拼成图集并循环换帧；**椭圆草地小岛**使用 `environment/Grass.png`；岛心较小椭圆为 **原始丛林**，随机放置 `objects/tree_medium.png` 与 `tree_small.png`。**角色**为 `scenes/map/player/PlayerWalk.tscn`：仅四向行走（方向键或 WASD），使用 `graphics/character/{down,left,right,up}` 序列帧，无工具动画；相机跟随玩家，移动由 `MapManager.clamp_player_world_position` 限制在岛内。贴图在无 `.import` 时通过 `Image.load` 读取，便于无头运行。`scripts/map_data.gd` 仍为 60×60 草地数据类，可供后续逻辑复用，与当前可视演示层独立。
 
 ## 运行项目
 

@@ -16,7 +16,7 @@ const SRC_GRASS := 1
 @onready var _water_layer: TileMapLayer = $Water
 @onready var _island_layer: TileMapLayer = $Island
 @onready var _jungle_root: Node2D = $Jungle
-@onready var _camera: Camera2D = $Camera2D
+@onready var _player: CharacterBody2D = $Jungle/Player
 
 var _tile_set: TileSet
 var _water_cells: Array[Vector2i] = []
@@ -43,11 +43,9 @@ func _ready() -> void:
 
 	_jungle_root.y_sort_enabled = true
 
-	_camera.position = Vector2(MAP_W * TILE_SIZE * 0.5, MAP_H * TILE_SIZE * 0.5)
-	_camera.zoom = Vector2(0.45, 0.45)
-	_camera.enabled = true
+	_spawn_player_on_island()
 
-	print("Island map: %dx%d, animated water 0–3, jungle sprites." % [MAP_W, MAP_H])
+	print("Island map: %dx%d, animated water 0–3, jungle, player walk." % [MAP_W, MAP_H])
 
 
 func _load_image_texture(res_path: String) -> ImageTexture:
@@ -143,6 +141,39 @@ func _place_tree_sprite(cx: int, cy: int) -> void:
 func _apply_water_frame() -> void:
 	for c: Vector2i in _water_cells:
 		_water_layer.set_cell(c, SRC_WATER, Vector2i(_water_frame, 0))
+
+
+func _spawn_player_on_island() -> void:
+	var cx := MAP_W / 2
+	var cy := MAP_H / 2
+	if not _is_island(cx, cy):
+		for y in MAP_H:
+			for x in MAP_W:
+				if _is_island(x, y):
+					cx = x
+					cy = y
+					break
+			if _is_island(cx, cy):
+				break
+	_player.global_position = Vector2((cx + 0.5) * TILE_SIZE, (cy + 0.5) * TILE_SIZE)
+
+
+## 供 PlayerWalk 在移动后拉回岛内（海水不可站立）
+func clamp_player_world_position(pos: Vector2) -> Vector2:
+	var half := TILE_SIZE * 0.5
+	pos.x = clampf(pos.x, half, MAP_W * TILE_SIZE - half)
+	pos.y = clampf(pos.y, half, MAP_H * TILE_SIZE - half)
+	var c := Vector2i(int(floor(pos.x / TILE_SIZE)), int(floor(pos.y / TILE_SIZE)))
+	if c.x >= 0 and c.x < MAP_W and c.y >= 0 and c.y < MAP_H and _is_island(c.x, c.y):
+		return pos
+	var hub := Vector2(MAP_W * 0.5 * TILE_SIZE, MAP_H * 0.5 * TILE_SIZE)
+	var out := pos
+	for _i in 28:
+		c = Vector2i(int(floor(out.x / TILE_SIZE)), int(floor(out.y / TILE_SIZE)))
+		if c.x >= 0 and c.x < MAP_W and c.y >= 0 and c.y < MAP_H and _is_island(c.x, c.y):
+			return out
+		out = out.lerp(hub, 0.12)
+	return out
 
 
 func _process(delta: float) -> void:
