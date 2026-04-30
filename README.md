@@ -26,6 +26,13 @@ myfram/
 └── project.godot
 ```
 
+## 农田与种植
+
+- **田区**：岛南侧矩形（丛林椭圆外），走近后按 **E** 或 **手柄 A**（`interact`）操作。
+- **流程**：空草地 → **翻土**（显示 `soil/soil.png` 瓦片）→ 有土时再次交互 **播种**（消耗背包 **玉米种子** 或 **番茄种子** 各 1）→ 约每 **5 秒** 长一阶（0→3），成熟后再按交互 **收获**（入包玉米/番茄，清土）。
+- **层**：`Jungle/FarmSoil`（土壤瓦片）、`Jungle/FarmCrops`（作物精灵）、`Jungle/Trees`（树木），与玩家同层 **y_sort**。
+- 开局背包会补充少量种子便于测试。
+
 ## 背包
 
 - **Autoload**：`InventoryManager`（`scripts/inventory/inventory_manager.gd`），24 槽、同 `id` 堆叠至 99。

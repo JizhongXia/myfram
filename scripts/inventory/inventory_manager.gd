@@ -18,6 +18,7 @@ func _ready() -> void:
 	for i in SLOT_COUNT:
 		_slots[i] = null
 	_register_toggle_inventory_action()
+	register_interact_action()
 
 
 func _register_toggle_inventory_action() -> void:
@@ -116,3 +117,47 @@ func _emit_changed() -> void:
 
 func set_backpack_open(open: bool) -> void:
 	player_input_blocked = open
+
+
+func register_interact_action() -> void:
+	if InputMap.has_action(&"interact"):
+		return
+	InputMap.add_action(&"interact", 0.2)
+	var ek := InputEventKey.new()
+	ek.physical_keycode = KEY_E
+	InputMap.action_add_event(&"interact", ek)
+	for joy in range(8):
+		var b := InputEventJoypadButton.new()
+		b.device = joy
+		b.button_index = JOY_BUTTON_A
+		InputMap.action_add_event(&"interact", b)
+
+
+func count_item(item_id: String) -> int:
+	var n := 0
+	for i in SLOT_COUNT:
+		var s: Variant = _slots[i]
+		if s != null and s["id"] == item_id:
+			n += int(s["qty"])
+	return n
+
+
+## 从背包扣除指定数量（跨槽合并扣）。成功返回 true
+func consume_item(item_id: String, amount: int) -> bool:
+	if count_item(item_id) < amount:
+		return false
+	var left := amount
+	for i in SLOT_COUNT:
+		if left <= 0:
+			break
+		var s: Variant = _slots[i]
+		if s == null or s["id"] != item_id:
+			continue
+		var q: int = int(s["qty"])
+		var take: int = mini(left, q)
+		s["qty"] = q - take
+		left -= take
+		if int(s["qty"]) <= 0:
+			_slots[i] = null
+	_emit_changed()
+	return true
