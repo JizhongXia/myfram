@@ -1,89 +1,42 @@
-# MyFram - 农场游戏
+# H5 牧场原型（Vue 3 + Node + SQLite + Docker）
 
-一个使用 Godot 4.x 开发的农场模拟游戏。
+前端为 **Vue 3 + Vite**，游戏层为 **Phaser 3**；后端 **Express + better-sqlite3**；**Docker Compose** 编排。
 
-## 项目结构
+## Sprout Lands 美术与地图
 
+- 推荐资源：[Sprout Lands - Asset Pack](https://cupnooble.itch.io/sprout-lands-asset-pack)（itch.io）。
+- 当前仓库在 `client/public/assets/sprout-lands/` 下附带了一套与 Sprout Lands 兼容的 **地图与贴图**（来自开源教程仓库 [magicjulio/sproutland](https://github.com/magicjulio/sproutland)，其 README 已署名为 Cup Nooble）。**若用于商业发行，请替换为你从 itch 下载的官方包，并遵守许可与署名。**
+- 构建时会运行 `client/scripts/build-sprout-manifest.mjs`，从 `map.tmx` 生成 `client/src/generated/sprout-manifest.json`，供 Phaser 加载瓦片与物体。
+
+## 玩法（当前）
+
+- **俯视牧场地图**：草地、装饰、房屋、围栏、树木等；**碰撞层**来自 Tiled 的 Collision 图层。
+- **「核心」**：使用苹果精灵作为可收集物占位，带缩放呼吸动画。
+- **移动**：**WASD** 或方向键**四方向**行走；角色使用包内四向行走帧动画。位置仍会周期性同步到 SQLite（`/api/state/player`）。
+
+## 本地开发
+
+```bash
+npm install
+npm run dev
 ```
-myfram/
-├── scenes/
-│   └── map/
-│       ├── terrain_types.gd      # 地形类型定义
-│       ├── MapManager.gd         # 地图管理器脚本
-│       └── MapManager.tscn       # 地图管理器场景
-├── scripts/
-│   └── map_data.gd              # 地图数据系统
-├── assets/                       # 资源文件夹
-└── project.godot                # Godot 项目配置
+
+浏览器打开 Vite 地址（默认 `http://localhost:5173`）。`/api` 由 Vite 代理到 `http://127.0.0.1:3001`。
+
+## 测试
+
+```bash
+npm test
 ```
 
-## 地图系统说明
+## Docker（本机需安装 Docker）
 
-### 地图尺寸
-- **核心农场区域**: 50×50 格
-- **周边扩展**: 各边扩展 5 格
-- **总地图尺寸**: 60×60 格
+```bash
+docker compose up --build
+```
 
-### 地形类型
+前端 **8080**，API **3001**；SQLite 数据卷在 API 容器的 `/data`。
 
-地图包含以下地形类型：
+## 技术说明
 
-| 类型 | 代码 | 说明 |
-|------|------|------|
-| 草地 | `GRASS` | 核心农场区域的基础地形 |
-| 草地-左上角 | `GRASS_CORNER_TL` | 地图左上角 |
-| 草地-右上角 | `GRASS_CORNER_TR` | 地图右上角 |
-| 草地-左下角 | `GRASS_CORNER_BL` | 地图左下角 |
-| 草地-右下角 | `GRASS_CORNER_BR` | 地图右下角 |
-| 草地-上边 | `GRASS_EDGE_T` | 地图上边界 |
-| 草地-下边 | `GRASS_EDGE_B` | 地图下边界 |
-| 草地-左边 | `GRASS_EDGE_L` | 地图左边界 |
-| 草地-右边 | `GRASS_EDGE_R` | 地图右边界 |
-
-### 关键类和方法
-
-#### MapData
-主要地图数据管理类：
-
-- `get_terrain(x, y)` - 获取指定位置的地形类型
-- `set_terrain(x, y, terrain_type)` - 设置指定位置的地形类型
-- `is_in_farm_area(x, y)` - 检查是否在核心农场区域
-- `is_in_border_area(x, y)` - 检查是否在周边区域
-- `is_corner(x, y)` - 检查是否是角落
-- `is_edge(x, y)` - 检查是否是边（非角）
-- `debug_print_terrain()` - 打印地形网格用于调试
-
-#### MapManager
-处理地图的渲染和交互：
-
-- `_render_map()` - 将地形数据渲染到 TileMap
-- `get_cell_under_mouse()` - 获取鼠标指向的格子
-- 支持左键点击查看格子信息
-
-## 使用方法
-
-1. 在 Godot 中打开此项目
-2. 创建 TileSet 资源（放在 `assets/` 目录）
-3. 为 MapManager 场景中的 TileMap 节点分配 TileSet
-4. 运行项目，地图会自动初始化并渲染
-
-## 调试
-
-启动游戏后，控制台会输出：
-- 地图基本信息
-- ASCII 艺术形式的地形网格预览
-- 点击格子后的坐标和地形信息
-
-## 下一步计划
-
-- [ ] 创建草地 TileSet 资源
-- [ ] 添加角色系统
-- [ ] 实现田地耕作机制
-- [ ] 添加植物生长系统
-- [ ] 实现季节变化
-- [ ] 添加 NPC 系统
-- [ ] 开发商店和交易系统
-
-## 许可证
-
-MIT License
+Phaser 首包较大；后续可用 `import()` 懒加载场景以减小首屏 JS。
