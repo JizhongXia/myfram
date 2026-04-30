@@ -6,10 +6,14 @@ const TILE_SIZE := 64
 const MAP_W := 48
 const MAP_H := 32
 
-## Sprout Lands Grass.png：Tiled 教程地图主草地 gid=43 → atlas (2,4)。变体须选不透明瓦片：(5,3) 等大量透明会透出视口灰底，看起来像没铺草。
-const ATLAS_GRASS_MAIN := Vector2i(2, 4)
-const ATLAS_GRASS_ALT := Vector2i(5, 4)
-const ATLAS_GRASS_JUNGLE := Vector2i(4, 4)
+## Sprout Lands Grass.png：主草地 (2,4) 为纯色块，远景像「一片绿」无草地质感。
+## 岛面使用不透明且方差高的草地格混合；(5,3) 等半透明格仍会透出底色，禁止使用。
+const GRASS_FIELD: Array[Vector2i] = [
+	Vector2i(7, 6), Vector2i(3, 7), Vector2i(2, 7), Vector2i(6, 6), Vector2i(6, 7), Vector2i(7, 7),
+]
+const GRASS_FIELD_BRIGHT: Array[Vector2i] = [
+	Vector2i(4, 4), Vector2i(5, 4), Vector2i(4, 5), Vector2i(5, 5),
+]
 
 const SRC_WATER := 0
 const SRC_GRASS := 1
@@ -186,16 +190,28 @@ func _is_farm_plot(cx: int, cy: int) -> bool:
 	return cx >= MAP_W / 2 - 7 and cx <= MAP_W / 2 + 9 and cy >= MAP_H / 2 + 1 and cy <= MAP_H / 2 + 13
 
 
+func _grass_atlas_for_cell(cx: int, cy: int) -> Vector2i:
+	if _is_jungle(cx, cy):
+		# 丛林也用不透明草地格，避免半透明格透出下层海水
+		return GRASS_FIELD[_hash_i(cx, cy, 444) % GRASS_FIELD.size()]
+	# 约 1/5 格用稍亮草地，打破单调
+	if _hash_i(cx, cy, 503) % 5 == 0:
+		return GRASS_FIELD_BRIGHT[_hash_i(cx, cy, 211) % GRASS_FIELD_BRIGHT.size()]
+	return GRASS_FIELD[_hash_i(cx, cy, 709) % GRASS_FIELD.size()]
+
+
+func _hash_i(x: int, y: int, salt: int) -> int:
+	var v := x * 73856093 ^ y * 19349663 ^ salt * 83492791
+	if v < 0:
+		v = -v
+	return v
+
+
 func _paint_world() -> void:
 	for y in MAP_H:
 		for x in MAP_W:
 			if _is_island(x, y):
-				var atlas := ATLAS_GRASS_MAIN
-				if _is_jungle(x, y):
-					atlas = ATLAS_GRASS_JUNGLE if _rng.randf() > 0.35 else ATLAS_GRASS_ALT
-				elif _rng.randf() > 0.7:
-					atlas = ATLAS_GRASS_ALT
-				_island_layer.set_cell(Vector2i(x, y), SRC_GRASS, atlas)
+				_island_layer.set_cell(Vector2i(x, y), SRC_GRASS, _grass_atlas_for_cell(x, y))
 				if _is_jungle(x, y) and _rng.randf() < 0.24:
 					_place_tree_sprite(x, y)
 	_refresh_all_water_tiles()
