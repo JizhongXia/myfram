@@ -1,89 +1,39 @@
-# MyFram - 农场游戏
+# H5 平台场景（Vue 3 + Node + SQLite + Docker）
 
-一个使用 Godot 4.x 开发的农场模拟游戏。
+本仓库在分支 `cursor/h5-vue-game-rebuild-e2a1` 上从零重建：前端为 **Vue 3 + Vite**，游戏层使用 **Phaser 3**（可继续引入其他包）；后端为 **Express + better-sqlite3**；编排为 **Docker Compose**。
 
-## 项目结构
+## 初始场景
 
+- **平台**：可站立的地面与一块高台（矩形碰撞体）。
+- **路灯**：精灵图路径为 `client/public/assets/lamp.png`（你可自行替换为 `路灯.png` 内容，保持文件名或改 `GameScene.js` 中的 `load.image`）。
+- **核心**：带呼吸缩放的圆形目标物。
+- **人物移动**：左右 **A/D** 或方向键，**W** 或上键在着地时跳跃；位置会周期性写入 SQLite（`/api/state/player`）。
+
+## 本地开发
+
+```bash
+npm install
+npm run dev
 ```
-myfram/
-├── scenes/
-│   └── map/
-│       ├── terrain_types.gd      # 地形类型定义
-│       ├── MapManager.gd         # 地图管理器脚本
-│       └── MapManager.tscn       # 地图管理器场景
-├── scripts/
-│   └── map_data.gd              # 地图数据系统
-├── assets/                       # 资源文件夹
-└── project.godot                # Godot 项目配置
+
+浏览器打开 Vite 提示的地址（默认 `http://localhost:5173`）。`/api` 由 Vite 代理到 `http://127.0.0.1:3001`。
+
+## 测试
+
+```bash
+npm test
 ```
 
-## 地图系统说明
+包含客户端 Vitest 与 API 的 Node 内置测试。
 
-### 地图尺寸
-- **核心农场区域**: 50×50 格
-- **周边扩展**: 各边扩展 5 格
-- **总地图尺寸**: 60×60 格
+## Docker（本机需安装 Docker）
 
-### 地形类型
+```bash
+docker compose up --build
+```
 
-地图包含以下地形类型：
+前端映射 **8080**，API 映射 **3001**；SQLite 数据卷挂载在 API 容器的 `/data`。
 
-| 类型 | 代码 | 说明 |
-|------|------|------|
-| 草地 | `GRASS` | 核心农场区域的基础地形 |
-| 草地-左上角 | `GRASS_CORNER_TL` | 地图左上角 |
-| 草地-右上角 | `GRASS_CORNER_TR` | 地图右上角 |
-| 草地-左下角 | `GRASS_CORNER_BL` | 地图左下角 |
-| 草地-右下角 | `GRASS_CORNER_BR` | 地图右下角 |
-| 草地-上边 | `GRASS_EDGE_T` | 地图上边界 |
-| 草地-下边 | `GRASS_EDGE_B` | 地图下边界 |
-| 草地-左边 | `GRASS_EDGE_L` | 地图左边界 |
-| 草地-右边 | `GRASS_EDGE_R` | 地图右边界 |
+## 技术说明
 
-### 关键类和方法
-
-#### MapData
-主要地图数据管理类：
-
-- `get_terrain(x, y)` - 获取指定位置的地形类型
-- `set_terrain(x, y, terrain_type)` - 设置指定位置的地形类型
-- `is_in_farm_area(x, y)` - 检查是否在核心农场区域
-- `is_in_border_area(x, y)` - 检查是否在周边区域
-- `is_corner(x, y)` - 检查是否是角落
-- `is_edge(x, y)` - 检查是否是边（非角）
-- `debug_print_terrain()` - 打印地形网格用于调试
-
-#### MapManager
-处理地图的渲染和交互：
-
-- `_render_map()` - 将地形数据渲染到 TileMap
-- `get_cell_under_mouse()` - 获取鼠标指向的格子
-- 支持左键点击查看格子信息
-
-## 使用方法
-
-1. 在 Godot 中打开此项目
-2. 创建 TileSet 资源（放在 `assets/` 目录）
-3. 为 MapManager 场景中的 TileMap 节点分配 TileSet
-4. 运行项目，地图会自动初始化并渲染
-
-## 调试
-
-启动游戏后，控制台会输出：
-- 地图基本信息
-- ASCII 艺术形式的地形网格预览
-- 点击格子后的坐标和地形信息
-
-## 下一步计划
-
-- [ ] 创建草地 TileSet 资源
-- [ ] 添加角色系统
-- [ ] 实现田地耕作机制
-- [ ] 添加植物生长系统
-- [ ] 实现季节变化
-- [ ] 添加 NPC 系统
-- [ ] 开发商店和交易系统
-
-## 许可证
-
-MIT License
+Phaser 体积较大，生产构建会有 chunk 体积提示；后续可用 `import()` 懒加载 Phaser 场景以优化首包。
