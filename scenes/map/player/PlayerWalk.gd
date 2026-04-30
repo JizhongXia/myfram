@@ -97,14 +97,23 @@ func _build_sprite_frames() -> void:
 	_sprite.animation = &"down"
 
 
+func _find_map_manager() -> Node:
+	var n: Node = get_parent()
+	while n:
+		if n.has_method(&"clamp_player_world_position"):
+			return n
+		n = n.get_parent()
+	return null
+
+
 func _physics_process(_delta: float) -> void:
 	if InventoryManager.player_input_blocked:
 		velocity = Vector2.ZERO
 		_sprite.stop()
 		_sprite.frame = 0
 		move_and_slide()
-		var map_root := get_parent().get_parent()
-		if map_root.has_method(&"clamp_player_world_position"):
+		var map_root := _find_map_manager()
+		if map_root:
 			global_position = map_root.clamp_player_world_position(global_position)
 		return
 
@@ -120,8 +129,8 @@ func _physics_process(_delta: float) -> void:
 		_sprite.frame = 0
 
 	move_and_slide()
-	var map_root := get_parent().get_parent()
-	if map_root.has_method(&"clamp_player_world_position"):
+	var map_root := _find_map_manager()
+	if map_root:
 		global_position = map_root.clamp_player_world_position(global_position)
 
 

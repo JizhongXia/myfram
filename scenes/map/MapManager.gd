@@ -1,6 +1,6 @@
 extends Node2D
 
-## 世界：海水 + 草地岛 + 丛林树 + 农田（翻土 / 播种 / 生长 / 收获）
+## 世界：整图海水 + 浮在海面的草地岛（轻微上下摆动）+ 丛林树 + 农田（翻土 / 播种 / 生长 / 收获）
 
 const TILE_SIZE := 64
 const MAP_W := 48
@@ -18,19 +18,27 @@ const SRC_SOIL := 2
 const SOIL_ATLAS := Vector2i(0, 0)
 const GROW_SEC_STAGE := 5.0
 
+## 岛屿相对海面的垂直起伏（像素）
+const ISLAND_BOB_AMPLITUDE := 5.0
+const ISLAND_BOB_SPEED := 1.15
+
+@onready var _ocean_backdrop: Node2D = $OceanBackdrop
+@onready var _ocean_fill: Polygon2D = $OceanBackdrop/Fill
 @onready var _water_layer: TileMapLayer = $Water
-@onready var _island_layer: TileMapLayer = $Island
-@onready var _jungle_root: Node2D = $Jungle
-@onready var _farm_soil: TileMapLayer = $FarmSoil
-@onready var _farm_crops: Node2D = $Jungle/FarmCrops
-@onready var _trees_root: Node2D = $Jungle/Trees
-@onready var _player: CharacterBody2D = $Jungle/Player
+@onready var _island_shadow: Polygon2D = $IslandShadow
+@onready var _island_root: Node2D = $IslandRoot
+@onready var _island_layer: TileMapLayer = $IslandRoot/Island
+@onready var _jungle_root: Node2D = $IslandRoot/Jungle
+@onready var _farm_soil: TileMapLayer = $IslandRoot/FarmSoil
+@onready var _farm_crops: Node2D = $IslandRoot/Jungle/FarmCrops
+@onready var _trees_root: Node2D = $IslandRoot/Jungle/Trees
+@onready var _player: CharacterBody2D = $IslandRoot/Jungle/Player
 
 var _tile_set: TileSet
-var _water_cells: Array[Vector2i] = []
 var _water_frame: int = 0
 var _water_tick: float = 0.0
 const WATER_ANIM_SEC := 0.18
+var _bob_time: float = 0.0
 
 var _rng := RandomNumberGenerator.new()
 
@@ -54,6 +62,8 @@ func _ready() -> void:
 	_island_layer.tile_set = _tile_set
 	_farm_soil.tile_set = _tile_set
 
+	_setup_ocean_backdrop()
+	_setup_island_shadow()
 	_paint_world()
 
 	_jungle_root.y_sort_enabled = true
@@ -120,6 +130,30 @@ func _build_tileset() -> TileSet:
 	return ts
 
 
+func _setup_ocean_backdrop() -> void:
+	var w := float(MAP_W * TILE_SIZE)
+	var h := float(MAP_H * TILE_SIZE)
+	_ocean_fill.polygon = PackedVector2Array([Vector2.ZERO, Vector2(w, 0.0), Vector2(w, h), Vector2(0.0, h)])
+
+
+func _setup_island_shadow() -> void:
+	# 与 _is_island 相同椭圆（格坐标），略压扁并下移，画在海面上表示浮岛投影
+	var ox := MAP_W / 2.0 * TILE_SIZE
+	var oy := MAP_H / 2.0 * TILE_SIZE
+	var rx := MAP_W * 0.36 * TILE_SIZE * 1.06
+	var ry := MAP_H * 0.38 * TILE_SIZE * 0.22
+	var pts := PackedVector2Array()
+	var n := 40
+	for i in n:
+		var a := TAU * float(i) / float(n)
+		pts.append(Vector2(ox + cos(a) * rx, oy + sin(a) * ry + TILE_SIZE * 0.35))
+	_island_shadow.polygon = pts
+
+
+func _island_world_offset() -> Vector2:
+	return _island_root.position
+
+
 func _is_island(cx: int, cy: int) -> bool:
 	var ox := MAP_W / 2.0
 	var oy := MAP_H / 2.0
@@ -149,7 +183,6 @@ func _is_farm_plot(cx: int, cy: int) -> bool:
 
 
 func _paint_world() -> void:
-	_water_cells.clear()
 	for y in MAP_H:
 		for x in MAP_W:
 			if _is_island(x, y):
@@ -161,10 +194,14 @@ func _paint_world() -> void:
 				_island_layer.set_cell(Vector2i(x, y), SRC_GRASS, atlas)
 				if _is_jungle(x, y) and _rng.randf() < 0.24:
 					_place_tree_sprite(x, y)
-			else:
-				_water_cells.append(Vector2i(x, y))
+	_refresh_all_water_tiles()
+
+
+func _refresh_all_water_tiles() -> void:
+	for y in MAP_H:
+		for x in MAP_W:
+			if not _is_island(x, y):
 				_water_layer.set_cell(Vector2i(x, y), SRC_WATER, Vector2i(_water_frame, 0))
-	_apply_water_frame()
 
 
 func _place_tree_sprite(cx: int, cy: int) -> void:
@@ -181,8 +218,7 @@ func _place_tree_sprite(cx: int, cy: int) -> void:
 
 
 func _apply_water_frame() -> void:
-	for c: Vector2i in _water_cells:
-		_water_layer.set_cell(c, SRC_WATER, Vector2i(_water_frame, 0))
+	_refresh_all_water_tiles()
 
 
 func _spawn_player_on_island() -> void:
@@ -197,7 +233,8 @@ func _spawn_player_on_island() -> void:
 					break
 			if _is_island(cx, cy):
 				break
-	_player.global_position = Vector2((cx + 0.5) * TILE_SIZE, (cy + 0.5) * TILE_SIZE)
+	var spawn := Vector2((cx + 0.5) * TILE_SIZE, (cy + 0.5) * TILE_SIZE)
+	_player.global_position = _island_root.global_position + spawn
 
 
 func _seed_demo_inventory() -> void:
@@ -209,20 +246,22 @@ func _seed_demo_inventory() -> void:
 
 
 func clamp_player_world_position(pos: Vector2) -> Vector2:
+	var off := _island_world_offset()
+	var local := pos - off
 	var half := TILE_SIZE * 0.5
-	pos.x = clampf(pos.x, half, MAP_W * TILE_SIZE - half)
-	pos.y = clampf(pos.y, half, MAP_H * TILE_SIZE - half)
-	var c := Vector2i(int(floor(pos.x / TILE_SIZE)), int(floor(pos.y / TILE_SIZE)))
+	local.x = clampf(local.x, half, MAP_W * TILE_SIZE - half)
+	local.y = clampf(local.y, half, MAP_H * TILE_SIZE - half)
+	var c := Vector2i(int(floor(local.x / TILE_SIZE)), int(floor(local.y / TILE_SIZE)))
 	if c.x >= 0 and c.x < MAP_W and c.y >= 0 and c.y < MAP_H and _is_island(c.x, c.y):
-		return pos
+		return local + off
 	var hub := Vector2(MAP_W * 0.5 * TILE_SIZE, MAP_H * 0.5 * TILE_SIZE)
-	var out := pos
+	var out := local
 	for _i in 28:
 		c = Vector2i(int(floor(out.x / TILE_SIZE)), int(floor(out.y / TILE_SIZE)))
 		if c.x >= 0 and c.x < MAP_W and c.y >= 0 and c.y < MAP_H and _is_island(c.x, c.y):
-			return out
+			return out + off
 		out = out.lerp(hub, 0.12)
-	return out
+	return out + off
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -234,7 +273,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _player_cell() -> Vector2i:
-	var p := _player.global_position
+	var o := _island_world_offset()
+	var p := _player.global_position - o
 	return Vector2i(int(floor(p.x / TILE_SIZE)), int(floor(p.y / TILE_SIZE)))
 
 
@@ -323,6 +363,10 @@ func _refresh_crop_visual(cell: Vector2i) -> void:
 
 
 func _process(delta: float) -> void:
+	_bob_time += delta
+	var bob := sin(_bob_time * ISLAND_BOB_SPEED) * ISLAND_BOB_AMPLITUDE + sin(_bob_time * 0.41) * 1.2
+	_island_root.position = Vector2(0.0, bob)
+
 	_water_tick += delta
 	if _water_tick >= WATER_ANIM_SEC:
 		_water_tick = 0.0
