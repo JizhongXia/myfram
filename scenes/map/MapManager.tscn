@@ -1,0 +1,35 @@
+[gd_scene load_steps=4 format=3 uid="uid://bmap_manager"]
+
+[ext_resource type="Script" path="res://scenes/map/MapManager.gd" id="1_script"]
+[ext_resource type="PackedScene" uid="uid://player_walk_simple" path="res://scenes/map/player/PlayerWalk.tscn" id="2_player"]
+[ext_resource type="PackedScene" uid="uid://inventory_panel_ui" path="res://scenes/ui/inventory_panel.tscn" id="3_inv"]
+
+[node name="MapManager" type="Node2D"]
+script = ExtResource("1_script")
+
+[node name="Water" type="TileMapLayer" parent="."]
+z_index = 0
+
+[node name="Island" type="TileMapLayer" parent="."]
+z_index = 1
+
+[node name="Jungle" type="Node2D" parent="."]
+z_index = 2
+y_sort_enabled = true
+
+[node name="FarmSoil" type="TileMapLayer" parent="Jungle"]
+z_index = 1
+
+[node name="Trees" type="Node2D" parent="Jungle"]
+z_index = 2
+y_sort_enabled = true
+
+[node name="FarmCrops" type="Node2D" parent="Jungle"]
+z_index = 3
+y_sort_enabled = true
+
+[node name="Player" parent="Jungle" instance=ExtResource("2_player")]
+z_index = 4
+position = Vector2(1536, 1024)
+
+[node name="InventoryPanel" parent="." instance=ExtResource("3_inv")]
