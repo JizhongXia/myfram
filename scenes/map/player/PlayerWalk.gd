@@ -1,20 +1,47 @@
 extends CharacterBody2D
-## 仅行走：四向 Sprout Lands 角色帧（无工具动画）
-## 输入：键盘 WASD / 方向键；手柄左摇杆 + 十字键（已连接的手柄）
+## 行走：四向 Sprout Lands 角色帧；装备工具时可播 *_hoe / *_water / *_axe 挥动（无循环）
 
 const SPEED := 220.0
 const WALK_FPS := 9.0
+const TOOL_SWIPE_FPS := 14.0
 const STICK_DEADZONE := 0.25
 
 @onready var _sprite: AnimatedSprite2D = $AnimatedSprite2D
+
+var _facing_base: StringName = &"down"
+var _tool_swipe_active: bool = false
 
 
 func _ready() -> void:
 	_ensure_move_actions()
 	_build_sprite_frames()
+	if not _sprite.animation_finished.is_connected(_on_animation_finished):
+		_sprite.animation_finished.connect(_on_animation_finished)
 	_sprite.play(&"down")
 	_sprite.stop()
 	y_sort_enabled = true
+
+
+func play_tool_swipe() -> void:
+	var suf := InventoryManager.tool_animation_suffix()
+	if suf.is_empty():
+		return
+	var anim_name := _tool_anim_name(_facing_base, suf)
+	if not _sprite.sprite_frames.has_animation(anim_name):
+		return
+	_tool_swipe_active = true
+	velocity = Vector2.ZERO
+	_sprite.play(anim_name)
+	_sprite.frame = 0
+
+
+func _on_animation_finished() -> void:
+	if not _tool_swipe_active:
+		return
+	_tool_swipe_active = false
+	_sprite.animation = _facing_base
+	_sprite.stop()
+	_sprite.frame = 0
 
 
 func _ensure_move_actions() -> void:
@@ -77,6 +104,13 @@ func _ensure_move_actions() -> void:
 		InputMap.action_add_event(&"move_down", ay_pos)
 
 
+func _tool_anim_name(base: StringName, suffix: String) -> StringName:
+	# 素材无 up_hoe 等，朝上时用 down_* 代替
+	if base == &"up":
+		return ("%s_%s" % ["down", suffix]) as StringName
+	return ("%s_%s" % [str(base), suffix]) as StringName
+
+
 func _build_sprite_frames() -> void:
 	var fr := SpriteFrames.new()
 	var dirs := { "down": 4, "left": 4, "right": 4, "up": 2 }
@@ -93,6 +127,21 @@ func _build_sprite_frames() -> void:
 				continue
 			var tex := ImageTexture.create_from_image(img)
 			fr.add_frame(anim, tex)
+
+	for dir_tool: String in ["down", "left", "right"]:
+		for sfx: String in ["hoe", "water", "axe"]:
+			var anim_key := dir_tool + "_" + sfx
+			fr.add_animation(anim_key)
+			fr.set_animation_speed(anim_key, TOOL_SWIPE_FPS)
+			fr.set_animation_loop(anim_key, false)
+			for i in 2:
+				var p2 := "res://assets/sprout-lands/graphics/character/%s_%s/%d.png" % [dir_tool, sfx, i]
+				var img2 := Image.new()
+				if img2.load(p2) != OK:
+					push_error("PlayerWalk: missing %s" % p2)
+					continue
+				fr.add_frame(anim_key, ImageTexture.create_from_image(img2))
+
 	_sprite.sprite_frames = fr
 	_sprite.animation = &"down"
 
@@ -109,12 +158,21 @@ func _find_map_manager() -> Node:
 func _physics_process(_delta: float) -> void:
 	if InventoryManager.player_input_blocked:
 		velocity = Vector2.ZERO
-		_sprite.stop()
-		_sprite.frame = 0
+		if not _tool_swipe_active:
+			_sprite.stop()
+			_sprite.frame = 0
 		move_and_slide()
 		var map_root := _find_map_manager()
 		if map_root:
 			global_position = map_root.clamp_player_world_position(global_position)
+		return
+
+	if _tool_swipe_active:
+		velocity = Vector2.ZERO
+		move_and_slide()
+		var map_root2 := _find_map_manager()
+		if map_root2:
+			global_position = map_root2.clamp_player_world_position(global_position)
 		return
 
 	var dir := _read_move_vector()
@@ -185,6 +243,7 @@ func _set_facing_anim(dir: Vector2) -> void:
 		_sprite.flip_h = false
 	else:
 		anim = &"down" if dir.y > 0 else &"up"
+	_facing_base = anim
 	if _sprite.animation != anim:
 		_sprite.animation = anim
 		_sprite.frame = 0

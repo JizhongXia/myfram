@@ -25,13 +25,12 @@ const SOIL_ATLAS := Vector2i(0, 0)
 ## 种植规则（与下方 _try_farm_interact / _till_cell / _try_plant / _harvest_cell 一致）
 ##
 ## 1. 田区：必须在岛上、且不在丛林心；矩形格范围（含边界）由 FARM_CELL_* 定义。
-## 2. 交互键：E / 手柄 A（`interact`）；背包打开时不处理。
-## 3. 空地（无作物、无田土格）：第一次交互 → 翻土（消耗无，铺 soil 瓦片）。
-## 4. 已翻土、无作物：有对应种子则播种并消耗 1 粒；无任何种子则提示。
-## 5. 播种优先级：同时有玉米种子与番茄种子时，优先种玉米。
-## 6. 已翻土且已有作物：未成熟（stage < CROP_STAGE_MATURE）→ 仅提示；成熟 → 收获，
-##    清空该格作物与田土，果实入包（数量见 HARVEST_*）。
-## 7. 生长：每格独立计时；每 GROW_SEC_STAGE 秒升一阶，0→1→2→3 可收。
+## 2. 交互：`interact`（E / 手柄 A）= 播种与收获；`use_tool`（空格 / 鼠标左键 / 手柄 X）= 挥动当前装备工具。
+## 3. 装备：键盘 1=锄头 2=水壶 3=斧头 0=空手；手柄 LB 循环。翻土必须装备锄头后再 `use_tool`。
+## 4. 已翻土、无作物：`interact` 有种子则播种；水壶 `use_tool` 对空土无效。
+## 5. 已翻土、有作物未熟：`use_tool`+水壶为该格生长计时 +WATER_BOOST_SEC（可跨阶段）；`interact` 仅提示生长中。
+## 6. 成熟收获、种子优先级、产量：同前。
+## 7. 斧头：当前为占位（挥动动画 + 控制台说明），不砍树。
 ## ---------------------------------------------------------------------------
 const FARM_CELL_MIN := Vector2i(MAP_W / 2 - 7, MAP_H / 2 + 1)
 const FARM_CELL_MAX := Vector2i(MAP_W / 2 + 9, MAP_H / 2 + 13)
@@ -43,6 +42,8 @@ const HARVEST_CORN_MIN := 1
 const HARVEST_CORN_MAX := 2
 const HARVEST_TOMATO_MIN := 1
 const HARVEST_TOMATO_MAX := 2
+## 水壶每次浇灌为当前格增加的生长秒数（可一次推进多阶）
+const WATER_BOOST_SEC := 3.0
 
 ## 岛屿相对海面的垂直起伏（像素）
 const ISLAND_BOB_AMPLITUDE := 5.0
@@ -103,7 +104,7 @@ func _ready() -> void:
 	_spawn_player_on_island()
 	_seed_demo_inventory()
 
-	print("Island map + farm plot: E / 手柄 A 翻土·播种·收获（规则见 MapManager.gd 顶部注释）。")
+	print("Island map: 1/2/3=锄头/水壶/斧 0=空手，空格=使用工具；E=播种/收获（规则见 MapManager.gd）。")
 
 
 func _load_crop_frames() -> void:
@@ -309,6 +310,10 @@ func clamp_player_world_position(pos: Vector2) -> Vector2:
 func _unhandled_input(event: InputEvent) -> void:
 	if InventoryManager.player_input_blocked:
 		return
+	if event.is_action_pressed(&"use_tool"):
+		_try_tool_use()
+		get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed(&"interact"):
 		_try_farm_interact()
 		get_viewport().set_input_as_handled()
@@ -320,10 +325,56 @@ func _player_cell() -> Vector2i:
 	return Vector2i(int(floor(p.x / TILE_SIZE)), int(floor(p.y / TILE_SIZE)))
 
 
+func _try_tool_use() -> void:
+	if InventoryManager.player_input_blocked:
+		return
+	var tid := InventoryManager.equipped_tool_id
+	if tid.is_empty():
+		print("[工具] 先按 1/2/3 装备锄头、水壶或斧头（0 收起）。")
+		return
+	if _player.has_method(&"play_tool_swipe"):
+		_player.play_tool_swipe()
+
+	var cell := _player_cell()
+	match tid:
+		"hoe":
+			if not _is_farm_plot(cell.x, cell.y):
+				print("[农田] 锄头仅能在南侧田区内翻土。")
+				return
+			if _crops.has(cell):
+				print("[农田] 该格已有作物，不能用锄头翻土。")
+				return
+			if _farm_soil.get_cell_source_id(cell) != -1:
+				print("[农田] 此处已是耕地。")
+				return
+			_till_cell(cell)
+		"watering":
+			if not _is_farm_plot(cell.x, cell.y):
+				print("[农田] 水壶仅用于南侧田区。")
+				return
+			if not _crops.has(cell):
+				print("[农田] 该格没有作物，浇水无效。")
+				return
+			var d: Dictionary = _crops[cell]
+			if int(d["stage"]) >= CROP_STAGE_MATURE:
+				print("[农田] 已成熟，请按 E 收获。")
+				return
+			d["grow"] = float(d["grow"]) + WATER_BOOST_SEC
+			while float(d["grow"]) >= GROW_SEC_STAGE and int(d["stage"]) < CROP_STAGE_MATURE:
+				d["grow"] = float(d["grow"]) - GROW_SEC_STAGE
+				d["stage"] = int(d["stage"]) + 1
+				_refresh_crop_visual(cell)
+			print("[农田] 已浇水（+%.1f 秒生长）。" % WATER_BOOST_SEC)
+		"axe":
+			print("[工具] 斧头：演示占位（尚未实现砍树）。")
+		_:
+			pass
+
+
 func _try_farm_interact() -> void:
 	var cell := _player_cell()
 	if not _is_farm_plot(cell.x, cell.y):
-		print("[农田] 仅岛南侧矩形田区可耕种（格范围 x=%d..%d, y=%d..%d，且非丛林）。" % [
+		print("[农田] 仅岛南侧矩形田区可耕种（格范围 x=%d..%d, y=%d..%d，且非丛林）。翻土请装备锄头后按空格。" % [
 			FARM_CELL_MIN.x, FARM_CELL_MAX.x, FARM_CELL_MIN.y, FARM_CELL_MAX.y,
 		])
 		return
@@ -334,7 +385,7 @@ func _try_farm_interact() -> void:
 		if st >= CROP_STAGE_MATURE:
 			_harvest_cell(cell, str(d["id"]))
 		else:
-			print("[农田] 作物生长中（阶段 %d/%d，每阶段约 %.0f 秒）。" % [
+			print("[农田] 作物生长中（阶段 %d/%d，每阶段约 %.0f 秒；可装备水壶按空格浇水加速）。" % [
 				st, CROP_STAGE_MATURE, GROW_SEC_STAGE,
 			])
 		return
@@ -343,15 +394,18 @@ func _try_farm_interact() -> void:
 		_try_plant(cell)
 		return
 
-	_till_cell(cell)
+	print("[农田] 请装备锄头（按 1）后按 空格 / 鼠标左键 / 手柄 X 翻土。")
 
 
 func _till_cell(cell: Vector2i) -> void:
+	if InventoryManager.equipped_tool_id != "hoe":
+		print("[农田] 翻土需要装备锄头（按 1）。")
+		return
 	if _farm_soil.get_cell_source_id(cell) != -1:
 		print("[农田] 此处已是耕地，无需再翻土。")
 		return
 	_farm_soil.set_cell(cell, SRC_SOIL, SOIL_ATLAS)
-	print("[农田] 已翻土 (%d,%d)。下一步：在背包中备种子后按 E 播种。" % [cell.x, cell.y])
+	print("[农田] 已翻土 (%d,%d)。按 E 播种。" % [cell.x, cell.y])
 
 
 func _try_plant(cell: Vector2i) -> void:
