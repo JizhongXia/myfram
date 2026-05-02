@@ -26,11 +26,12 @@ const SOIL_ATLAS := Vector2i(0, 0)
 ##
 ## 1. 田区：必须在岛上、且不在丛林心；矩形格范围（含边界）由 FARM_CELL_* 定义。
 ## 2. 交互：`interact`（E / 手柄 A）= 播种与收获；`use_tool`（空格 / 鼠标左键 / 手柄 X）= 挥动当前装备工具。
-## 3. 装备：键盘 1=锄头 2=水壶 3=斧头 0=空手；手柄 LB 循环。翻土必须装备锄头后再 `use_tool`。
-## 4. 已翻土、无作物：`interact` 有种子则播种；水壶 `use_tool` 对空土无效。
-## 5. 已翻土、有作物未熟：`use_tool`+水壶为该格生长计时 +WATER_BOOST_SEC（可跨阶段）；`interact` 仅提示生长中。
-## 6. 成熟收获、种子优先级、产量：同前。
-## 7. 斧头：当前为占位（挥动动画 + 控制台说明），不砍树。
+## 3. 装备：键盘 1/2/3 对应锄头/水壶/斧，0 空手；手柄 LB 循环。**背包中必须有对应物品**（hoe / watering_can / axe）才可装备。
+## 4. 工具耐久：每次成功使用锄头翻土、水壶浇水、斧头砍树，消耗当前装备对应槽位的 1 点耐久；耐久用尽扣叠放数量 1 并刷新耐久。
+## 5. 已翻土、无作物：`interact` 有种子则播种；水壶 `use_tool` 对空土无效。
+## 6. 已翻土、有作物未熟：`use_tool`+水壶为该格生长计时 +WATER_BOOST_SEC（可跨阶段）；`interact` 仅提示生长中。
+## 7. 成熟收获、种子优先级、产量：同前。
+## 8. 斧头：玩家附近 CHOP_TREE_RANGE_PX 内最近一棵树可砍，掉落木材 CHOP_WOOD_*，树精灵移除。
 ## ---------------------------------------------------------------------------
 const FARM_CELL_MIN := Vector2i(MAP_W / 2 - 7, MAP_H / 2 + 1)
 const FARM_CELL_MAX := Vector2i(MAP_W / 2 + 9, MAP_H / 2 + 13)
@@ -44,6 +45,9 @@ const HARVEST_TOMATO_MIN := 1
 const HARVEST_TOMATO_MAX := 2
 ## 水壶每次浇灌为当前格增加的生长秒数（可一次推进多阶）
 const WATER_BOOST_SEC := 3.0
+const CHOP_TREE_RANGE_PX := 100.0
+const CHOP_WOOD_MIN := 2
+const CHOP_WOOD_MAX := 4
 
 ## 岛屿相对海面的垂直起伏（像素）
 const ISLAND_BOB_AMPLITUDE := 5.0
@@ -254,10 +258,29 @@ func _place_tree_sprite(cx: int, cy: int) -> void:
 	var spr := Sprite2D.new()
 	spr.texture = tex
 	spr.centered = true
+	spr.set_meta(&"cell_x", cx)
+	spr.set_meta(&"cell_y", cy)
 	var h := tex.get_height()
 	spr.position = Vector2((cx + 0.5) * TILE_SIZE, (cy + 1.0) * TILE_SIZE - h * 0.5)
 	spr.z_index = 2
 	_trees_root.add_child(spr)
+
+
+func _find_choppable_tree_near_player() -> Sprite2D:
+	var best: Sprite2D = null
+	var best_d := CHOP_TREE_RANGE_PX + 1.0
+	var p := _player.global_position
+	for ch: Node in _trees_root.get_children():
+		var spr := ch as Sprite2D
+		if spr == null or not is_instance_valid(spr):
+			continue
+		if not spr.has_meta(&"cell_x"):
+			continue
+		var d := p.distance_to(spr.global_position)
+		if d < best_d and d <= CHOP_TREE_RANGE_PX:
+			best_d = d
+			best = spr
+	return best
 
 
 func _apply_water_frame() -> void:
@@ -286,6 +309,9 @@ func _seed_demo_inventory() -> void:
 	InventoryManager.add_item("wood", "木材", 30)
 	InventoryManager.add_item("corn_seed", "玉米种子", 10)
 	InventoryManager.add_item("tomato_seed", "番茄种子", 10)
+	InventoryManager.add_item("hoe", "锄头", 1)
+	InventoryManager.add_item("watering_can", "水壶", 1)
+	InventoryManager.add_item("axe", "斧头", 1)
 
 
 func clamp_player_world_position(pos: Vector2) -> Vector2:
@@ -330,7 +356,9 @@ func _try_tool_use() -> void:
 		return
 	var tid := InventoryManager.equipped_tool_id
 	if tid.is_empty():
-		print("[工具] 先按 1/2/3 装备锄头、水壶或斧头（0 收起）。")
+		print("[工具] 先按 1/2/3 装备锄头、水壶或斧头（需背包中有对应物品；0 收起）。")
+		return
+	if InventoryManager.item_id_for_equipped_tool().is_empty():
 		return
 	if _player.has_method(&"play_tool_swipe"):
 		_player.play_tool_swipe()
@@ -348,6 +376,8 @@ func _try_tool_use() -> void:
 				print("[农田] 此处已是耕地。")
 				return
 			_till_cell(cell)
+			if InventoryManager.consume_equipped_tool_charge():
+				print("[农田] 已翻土；锄头耐久 -1。")
 		"watering":
 			if not _is_farm_plot(cell.x, cell.y):
 				print("[农田] 水壶仅用于南侧田区。")
@@ -364,9 +394,20 @@ func _try_tool_use() -> void:
 				d["grow"] = float(d["grow"]) - GROW_SEC_STAGE
 				d["stage"] = int(d["stage"]) + 1
 				_refresh_crop_visual(cell)
-			print("[农田] 已浇水（+%.1f 秒生长）。" % WATER_BOOST_SEC)
+			if InventoryManager.consume_equipped_tool_charge():
+				print("[农田] 已浇水（+%.1f 秒）；水壶耐久 -1。" % WATER_BOOST_SEC)
 		"axe":
-			print("[工具] 斧头：演示占位（尚未实现砍树）。")
+			var tree_spr := _find_choppable_tree_near_player()
+			if tree_spr == null:
+				print("[工具] 附近没有可砍的树（走近丛林中的树再挥斧）。")
+				return
+			var cx: int = int(tree_spr.get_meta(&"cell_x", 0))
+			var cy: int = int(tree_spr.get_meta(&"cell_y", 0))
+			tree_spr.queue_free()
+			var wqty := _rng.randi_range(CHOP_WOOD_MIN, CHOP_WOOD_MAX)
+			InventoryManager.add_item("wood", "木材", wqty)
+			if InventoryManager.consume_equipped_tool_charge():
+				print("[工具] 砍树完成，木材 +%d；斧头耐久 -1。" % wqty)
 		_:
 			pass
 

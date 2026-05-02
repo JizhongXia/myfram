@@ -57,8 +57,15 @@ func _refresh_slots() -> void:
 		else:
 			var nm: String = str(s.get("name", s["id"]))
 			var q: int = int(s["qty"])
-			b.text = nm if q <= 1 else "%s x%d" % [nm, q]
-			b.tooltip_text = "%s\n数量: %d" % [str(s["id"]), q]
+			var id: String = str(s["id"])
+			if id == "hoe" or id == "watering_can" or id == "axe":
+				var max_d := InventoryManager.get_default_tool_durability()
+				var dur: int = int(s.get("durability", max_d))
+				b.text = "%s %d/%d" % [nm, dur, max_d]
+				b.tooltip_text = "%s\n叠放: %d\n耐久: %d" % [id, q, dur]
+			else:
+				b.text = nm if q <= 1 else "%s x%d" % [nm, q]
+				b.tooltip_text = "%s\n数量: %d" % [id, q]
 
 
 func _on_slot_pressed(slot_index: int) -> void:

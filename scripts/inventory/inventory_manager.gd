@@ -1,14 +1,28 @@
 extends Node
 ## 全局背包：固定槽位数，同 id 自动堆叠；供 UI 与游戏逻辑读写。
-## 装备工具：`equipped_tool_id` 为 "" | "hoe" | "watering" | "axe"；快捷键 1/2/3 清空 0，手柄 LB 循环。
+## 装备工具：需背包中有对应物品（hoe / watering_can / axe）；每件工具有耐久，用尽扣 1 数量。
 
 signal inventory_changed
 signal equipped_tool_changed(tool_id: String)
 
 const SLOT_COUNT := 24
 const MAX_STACK := 99
+## 每件工具首次入包时的耐久（每次成功使用扣 1）
+const DEFAULT_TOOL_DURABILITY := 30
 
-## 每槽为 null 或 Dictionary: { "id": String, "name": String, "qty": int }
+## 逻辑工具 id -> 背包物品 id
+const TOOL_ITEM_IDS := {
+	"hoe": "hoe",
+	"watering": "watering_can",
+	"axe": "axe",
+}
+
+
+func get_default_tool_durability() -> int:
+	return DEFAULT_TOOL_DURABILITY
+
+
+## 每槽为 null 或 Dictionary: { "id": String, "name": String, "qty": int, 可选 "durability": int }
 var _slots: Array = []
 
 ## 打开背包时由 UI 设置，供 PlayerWalk 等暂停移动输入
@@ -46,8 +60,20 @@ func _unhandled_input(event: InputEvent) -> void:
 		set_equipped_tool("")
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed(&"cycle_equip_tool"):
-		_equip_cycle_index = (_equip_cycle_index + 1) % _equip_cycle_order.size()
-		set_equipped_tool(str(_equip_cycle_order[_equip_cycle_index]))
+		var n := _equip_cycle_order.size()
+		for _step in n:
+			_equip_cycle_index = (_equip_cycle_index + 1) % n
+			var cand: String = str(_equip_cycle_order[_equip_cycle_index])
+			if cand == "":
+				set_equipped_tool("")
+				get_viewport().set_input_as_handled()
+				return
+			var nid: String = str(TOOL_ITEM_IDS.get(cand, ""))
+			if not nid.is_empty() and count_item(nid) >= 1:
+				set_equipped_tool(cand)
+				get_viewport().set_input_as_handled()
+				return
+		set_equipped_tool("")
 		get_viewport().set_input_as_handled()
 
 
@@ -79,7 +105,24 @@ func get_slot(index: int) -> Variant:
 
 
 ## 添加物品；尽量合并已有同 id 槽，否则找空槽。返回未能入包的数量。
+## 锄头/水壶/斧不合并，每件单独耐久。
 func add_item(item_id: String, display_name: String, quantity: int = 1) -> int:
+	if item_id == "hoe" or item_id == "watering_can" or item_id == "axe":
+		var left_t := quantity
+		while left_t > 0:
+			var empty_t := _first_empty_slot()
+			if empty_t < 0:
+				break
+			_slots[empty_t] = {
+				"id": item_id,
+				"name": display_name,
+				"qty": 1,
+				"durability": DEFAULT_TOOL_DURABILITY,
+			}
+			left_t -= 1
+		_emit_changed()
+		return left_t
+
 	var left := quantity
 	left = _merge_into_existing(item_id, left)
 	while left > 0:
@@ -94,6 +137,8 @@ func add_item(item_id: String, display_name: String, quantity: int = 1) -> int:
 
 
 func _merge_into_existing(item_id: String, quantity: int) -> int:
+	if item_id == "hoe" or item_id == "watering_can" or item_id == "axe":
+		return quantity
 	var left := quantity
 	for i in SLOT_COUNT:
 		var s: Variant = _slots[i]
@@ -153,6 +198,11 @@ func set_equipped_tool(tool_id: String) -> void:
 	var t := tool_id
 	if t != "hoe" and t != "watering" and t != "axe" and t != "":
 		t = ""
+	if t != "":
+		var need_id: String = str(TOOL_ITEM_IDS.get(t, ""))
+		if need_id.is_empty() or count_item(need_id) < 1:
+			print("[工具] 背包中没有 %s，无法装备。" % need_id)
+			return
 	if t == equipped_tool_id:
 		return
 	equipped_tool_id = t
@@ -164,7 +214,45 @@ func set_equipped_tool(tool_id: String) -> void:
 	if t == "":
 		print("[工具] 已收起。")
 	else:
-		print("[工具] 装备：%s（左键/空格/手柄 X 使用；E 播种与收获）" % t)
+		print("[工具] 装备：%s（需背包中有对应工具；空格使用扣耐久；E 播种与收获）" % t)
+
+
+func item_id_for_equipped_tool() -> String:
+	if equipped_tool_id.is_empty():
+		return ""
+	return str(TOOL_ITEM_IDS.get(equipped_tool_id, ""))
+
+
+## 消耗当前装备对应物品 1 点耐久；用尽一件则数量 -1。成功返回 true
+func consume_equipped_tool_charge() -> bool:
+	var item_id := item_id_for_equipped_tool()
+	if item_id.is_empty():
+		return false
+	return _consume_tool_durability_on_item(item_id)
+
+
+func _consume_tool_durability_on_item(item_id: String) -> bool:
+	for i in SLOT_COUNT:
+		var s: Variant = _slots[i]
+		if s == null or str(s["id"]) != item_id:
+			continue
+		var d: int = int(s.get("durability", DEFAULT_TOOL_DURABILITY))
+		d -= 1
+		if d <= 0:
+			var q: int = int(s["qty"])
+			q -= 1
+			if q <= 0:
+				_slots[i] = null
+			else:
+				s["qty"] = q
+				s["durability"] = DEFAULT_TOOL_DURABILITY
+		else:
+			s["durability"] = d
+		_emit_changed()
+		if equipped_tool_id != "" and count_item(str(TOOL_ITEM_IDS[equipped_tool_id])) < 1:
+			set_equipped_tool("")
+		return true
+	return false
 
 
 func tool_animation_suffix() -> String:
