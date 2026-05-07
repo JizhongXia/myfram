@@ -2,11 +2,19 @@
 
 一个使用 Godot 4.x 开发的农场模拟游戏。
 
+## 海水贴图测试场景
+
+- 场景：`scenes/test/WaterTest.tscn`，脚本 `WaterTest.gd`：单层 `TileMapLayer` 铺满 `assets/sprout-lands/graphics/water/0..3.png` 四帧动画。
+- 当前 `project.godot` 的 `run/main_scene` 指向该测试场景，便于单独验证海水贴图；恢复主地图请改回 `res://scenes/map/MapManager.tscn`（若已从其它分支检出完整工程）。
+
 ## 项目结构
 
 ```
 myfram/
 ├── scenes/
+│   ├── test/
+│   │   ├── WaterTest.tscn
+│   │   └── WaterTest.gd
 │   └── map/
 │       ├── terrain_types.gd      # 地形类型定义
 │       ├── MapManager.gd         # 地图管理器脚本

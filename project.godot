@@ -1,0 +1,20 @@
+; Engine configuration file.
+; 当前主场景为海水贴图测试；恢复主玩法请将 run/main_scene 改回 res://scenes/map/MapManager.tscn 并恢复 [autoload]。
+
+config_version=5
+
+[application]
+
+config/name="MyFram"
+run/main_scene="res://scenes/test/WaterTest.tscn"
+config/features=PackedStringArray("4.6")
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
